@@ -1,5 +1,4 @@
 # timerpool
-# TODO: build with nimscript
 
 software timerpool implementation in Nim
 

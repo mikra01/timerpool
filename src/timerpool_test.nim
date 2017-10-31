@@ -6,7 +6,7 @@ suite "test_general_features":
     setup:
       var
         stpRef = timerpool.newTimerPool(10.int)
-        timerhdls = newSeq[TPoolHandlePtr](5)
+        timerhdls = newSeq[TimerHandlePtr](5)
       for i in timerhdls.low .. timerhdls.high:
         timerhdls[i] = poolRef2Ptr(stpRef).allocTimer()
     
@@ -41,20 +41,20 @@ suite "test_general_features":
         for i in timerhdls.low .. timerhdls.high:
           timerhdls[i].deallocTimer()
         # call on freed timer should thow an exception
-        expect(timerpool.STPError):
+        expect(timerpool.TPError):
           timerhdls[timerhdls.low].setAlarmCounter(50)
-        expect(timerpool.STPError):
+        expect(timerpool.TPError):
           timerhdls[timerhdls.low].deallocTimer()
-        expect(timerpool.STPError):
+        expect(timerpool.TPError):
           discard timerhdls[timerhdls.low].getAlarmCounter()
-        expect(timerpool.STPError):
+        expect(timerpool.TPError):
           timerhdls[timerhdls.low].waitForAlarm()
 
 suite "test_threading":
     setup:
       var
         stpRef= timerpool.newTimerPool(10.int)
-        timerhdls = newSeq[TPoolHandlePtr](5)
+        timerhdls = newSeq[TimerHandlePtr](5)
       for i in timerhdls.low .. timerhdls.high:
         timerhdls[i] = (poolRef2Ptr(stpRef)).allocTimer()
       
@@ -63,7 +63,7 @@ suite "test_threading":
 
     test "one_timer_200_childthreads":
       # worker proc per thread
-      proc dosomething(timerhdl :TPoolHandlePtr) : int =
+      proc dosomething(timerhdl :TimerHandlePtr) : int =
                        result = 1
                        timerhdl.waitForAlarm()
 
@@ -87,7 +87,7 @@ suite "test_threading":
       # multiple threads are waiting on a timer and needs to be interrupted.
       # due to that we dealloc the timer before done.
       # all threads should wakeup immediately
-      proc dosomething(timerhdl :TPoolHandlePtr) : int =
+      proc dosomething(timerhdl :TimerHandlePtr) : int =
                        result = 1
                        timerhdl.waitForAlarm()
       var presults = newSeq[FlowVar[int]](250)
@@ -114,9 +114,9 @@ suite "test_threading":
     test "multiple_threads_alloc":
         # multiple threads requesting a new timer from the pool
         proc dosomething(poolhdl :TimerPoolPtr) : int =
-                         var timer : TPoolHandlePtr = nil
+                         var timer : TimerHandlePtr = nil
                          try:
-                           initThreadContext()
+                           initThreadContext(poolhdl)
                            timer = poolhdl.allocTimer()
                            timer.setAlarmCounter(2)
                            # do something till timeout reached
@@ -126,7 +126,7 @@ suite "test_threading":
                            echo getCurrentExceptionMsg()
                          finally:
                              timer.deallocTimer()
-                             deinitThreadContext()
+                             deinitThreadContext(poolhdl)
         
         var presults = newSeq[FlowVar[int]](250)
         for i in presults.low..presults.high:

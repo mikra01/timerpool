@@ -189,7 +189,10 @@ template abortWhenTimerFreed(timerhdl : TimerHandlePtr, p : string) =
     raise newException(TPError,p & "timer already freed ")
 
 template waitOnTimerhdl(timerhdl : TimerHandlePtr) =
-    # semaphore
+    # wait counter. each wait_condition is counted. this ensures
+    # that the signaling side (the worker thread which calls "signal")
+    # knows how many times "signal" must be called to wake up all waiting
+    # threads properly (the Lock-api has no notify_all-style call at the moment)
     discard atomicInc(timerhdl.waitingOnLockCount)   
     wait(timerhdl.waitCond,timerhdl.waitLock)   
     discard atomicDec(timerhdl.waitingOnLockCount)   

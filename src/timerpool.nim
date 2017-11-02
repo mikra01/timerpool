@@ -236,36 +236,41 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
     inactiveTimersCount : int 
     shutdownState : ShutdownState = ShutdownState.poolRunning
     currTime : float    
+    poolIdle : bool   # true if all timers freed
+
+  poolIdle = false
 
   while true:
-    runningTimersCount = 0
-    freedTimersCount = 0
-    inactiveTimersCount = 0
+ 
     # measure the time we need for waiting on the lock and doing the work, 
     # substract this from the given sleeping-time to get a smoothed timebase
     currTime = cpuTime()
-
-    # handle the conditions for existing timers
-    # if the alarm-val is 0 its signaled via the condition
-    # but only if someone is waiting on it
-    for i in allTHandles.low .. allTHandles.high:
-      let timer = allTHandles[i]
-      if not timer.isNil:  
-        if timerRunning(allTHandles[i]):
-          discard atomicDec(allTHandles[i].alarmctr) 
-          runningTimersCount = runningTimersCount + 1
-        elif timerFreed(allTHandles[i]): 
-          freedTimersCount = freedTimersCount + 1
-        else:
-          inactiveTimersCount = inactiveTimersCount + 1
+  
+    runningTimersCount = 0
+    freedTimersCount = 0
+    inactiveTimersCount = 0
+       
+    if not poolIdle:  
+      for i in allTHandles.low .. allTHandles.high:
+        let timer = allTHandles[i]
+        if not timer.isNil:  
+          if timerRunning(allTHandles[i]):
+            discard atomicDec(allTHandles[i].alarmctr) 
+            runningTimersCount = runningTimersCount + 1
+          elif timerFreed(allTHandles[i]): 
+            freedTimersCount = freedTimersCount + 1
+          else:
+            inactiveTimersCount = inactiveTimersCount + 1
         
-        if timerDone(allTHandles[i]) or timerFreed(allTHandles[i]):
-          # we need also check for freed-state because the timer could
-          # be freed while it's counting 
-          while threadWaiting(allTHandles[i]):
-            signal(allTHandles[i].waitCond)
-            # we call signal for each waiting thread
+          if timerDone(allTHandles[i]) or timerFreed(allTHandles[i]):
+            # we need also check for freed-state because the timer could
+            # be freed while it's counting 
+            while threadWaiting(allTHandles[i]):
+              signal(allTHandles[i].waitCond)
+              # we call signal for each waiting thread
     
+    poolIdle = (runningTimersCount + inactiveTimersCount) == 0  
+
     if shutdownState == ShutdownState.poolRunning:
       # read out the queue. for each run we consume the entire queue
 
@@ -282,6 +287,7 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
           case activeCommand
    
           of requestTimer:
+            poolIdle = false
             var timerHandle = findFreeTimer(allTHandles)
             if timerHandle.isNil:
               # initialise new handle
@@ -369,7 +375,7 @@ proc deinitThreadvar() : void =
   deinitCond(threadContext.allocTimerCompleteCond)
   deinitCond(threadContext.poolStatsCompleteCond)  
   
-proc initThreadContext*(tpptr : TimerPoolPtr) : void =
+proc initThreadContext*(tpptr : TimerPoolPtr) : void {.raises: [TPError].} =
   ## to be called explicit if the pool-accessing thread is not the
   ## owner of the timerpool (initialises threadvar globs)
   ##
@@ -385,7 +391,7 @@ proc newTimerPool*(tbase_ms : Tickval = 100) : ref TimerPool {.gcsafe.} =
   initThreadvar()
   createThread(result.tickthread,timerPoolWorkLoop,cast[SomePtr](result))
 
-proc deinitThreadContext*(tpptr : TimerPoolPtr) : void {.gcsafe.} =
+proc deinitThreadContext*(tpptr : TimerPoolPtr) : void {.gcsafe , raises: [TPError].} =
   ## call this proc if the pool-accessing thread should be
   ## detached from the timerpool (cleanup threadvar globs)
   ##
@@ -423,7 +429,7 @@ proc shutdownTimerPool*(tpref :  TimerPoolRef ) : void {.gcsafe.} =
   deinitLock(tpref.poolReqLock)
   deinitThreadvar() 
 
-proc allocTimer*(tpptr : TimerPoolPtr) : TimerHandlePtr {.gcsafe.} =
+proc allocTimer*(tpptr : TimerPoolPtr) : TimerHandlePtr {.gcsafe , raises: [TPError].} =
   ## returns a timerhandle. the timer is always of type:oneshot but could
   ## also act as a continous one. in this case the caller needs to reset the
   ## alarm to the needed value. This threadsafe call blocks till the request 
@@ -444,7 +450,7 @@ proc allocTimer*(tpptr : TimerPoolPtr) : TimerHandlePtr {.gcsafe.} =
   validatePoolReply(threadContext) 
   result = threadContext.replyTimerHandlePtr
 
-proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.gcsafe.} =
+proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError].} =
   ## the timer handle is pushed back to the pool. 
   ## once freed it is not handled any more and its recycled for later use
   ##
@@ -457,7 +463,7 @@ proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.gcsafe.} =
   abortWhenTimerFreed(timerhdl,"deallocTimer")
   atomicStore[bool](timerhdl.timerFreed,true)
 
-proc setAlarmCounter*(timerhdl : TimerHandlePtr , value : Tickval ) : void {.gcsafe.} =
+proc setAlarmCounter*(timerhdl : TimerHandlePtr , value : Tickval ) : void {.gcsafe , raises: [TPError].} =
   ## sets the timers countdown alarm-value to the given one.
   ## reset the counter after it´s fired to obtain a continous timer
   ## 
@@ -468,7 +474,7 @@ proc setAlarmCounter*(timerhdl : TimerHandlePtr , value : Tickval ) : void {.gcs
   abortWhenTimerFreed(timerhdl,"setAlarmCounter")
   atomicStore[int](timerhdl.alarmctr,value)  
 
-proc getAlarmCounter*(timerhdl : TimerHandlePtr ) : int {.gcsafe.} =
+proc getAlarmCounter*(timerhdl : TimerHandlePtr ) : int {.gcsafe , raises: [TPError].} =
   ## returns the current value of the alarmcounter
   ## could be used for a polling-style-waiting_for_timer_fired
   ##
@@ -479,7 +485,7 @@ proc getAlarmCounter*(timerhdl : TimerHandlePtr ) : int {.gcsafe.} =
   abortWhenTimerFreed(timerhdl,"getAlarmCounter")
   result = atomicLoad[int](timerhdl.alarmctr)
 
-proc waitForAlarm*(timerhdl : TimerHandlePtr) : void {.gcsafe.} =
+proc waitForAlarm*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError].} =
   ## blocking wait till the alarmcounter is decremented to 0
   ## 
   ## threadsafe impl and could be called by multiple threads simultaniously
@@ -497,7 +503,7 @@ type
     ## runningCount,freedCount and inactiveCount is the total amount
     ## of timerhandles within the pool
 
-proc waitForGetStats*(tpptr : TimerPoolPtr) : PoolStats {.gcsafe.} =
+proc waitForGetStats*(tpptr : TimerPoolPtr) : PoolStats {.gcsafe , raises: [TPError].} =
   ## fetches some pool statistics for debugging purposes
   ##
   ## raises TPError if the pointer parameter is nil or the threadContext

@@ -2,7 +2,7 @@ import ../timerpool
 import times,threadpool,os
 import unittest
 
-suite "test_general_features":
+suite "general_tests":
     setup:
       var
         stpRef = timerpool.newTimerPool(10.int)
@@ -18,7 +18,7 @@ suite "test_general_features":
  
       # set all timers fire after 5 ticks
       for i in timerhdls.low .. timerhdls.high:
-        timerhdls[i].setAlarmCounter(5.int) # run for about 50ms
+        timerhdls[i].setAlarmCounter(5.int) # run for about 50ms (timerbase*5)
       var statsBefore : PoolStats = (cast[TimerPoolPtr](stpRef))
                                       .waitForGetStats
       sleep(70) # wait till timer fired
@@ -68,13 +68,13 @@ suite "test_threading":
                        timerhdl.waitForAlarm()
 
       var presults = newSeq[FlowVar[int]](200)
-      timerhdls[0].setAlarmCounter(10) # 200ms
+      timerhdls[0].setAlarmCounter(10) # 100ms (timerbase*10)
  
       for i in presults.low..presults.high:
         presults[i] = spawn dosomething(timerhdls[0])
         discard stpRef.poolRef2Ptr.waitForGetStats
       timerhdls[0].waitForAlarm()
-      # every thread is also waiting on it. if finished the results
+      # every thread is also waiting on it. when finished the results
       # are present
       var tresult : int = 0 
       for i in presults.low..presults.high:

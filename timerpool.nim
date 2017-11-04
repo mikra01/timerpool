@@ -35,15 +35,15 @@ import times,sequtils,deques,locks, os
 ##      tpPtr = poolRef2Ptr(tpRef)    # get ptr for api call
 ##      timerhdl = allocTimer(tpPtr)
 ##  
-##    timerhdl.setAlarmCounter(5)  # set expiration to 50ms
+##    timerhdl.setAlarmCounter(5)  # set expiration to 50ms (timebase * 5)
 ##   
-##    while timerhdl.getAlarmCounter() > 0: # you can poll to it
-##      discard                             # .. and may something useful here..
+##    while timerhdl.getAlarmCounter() > 0: # you can poll it
+##      discard                             # .. and may doing something useful here..
 ## 
-##    timerhdl.waitForAlarm() # or sleep till timer expired
-##    timerhdl.deallocTimer() # pushes the timer back to pool  
-##    tpRef.shutdownTimerPool() # shutdown the pool and blocks till all
-##                              # timers are expired
+##    timerhdl.waitForAlarm()     # or sleep till timer expired
+##    timerhdl.deallocTimer()     # pushes the timer back to pool  
+##    tpRef.shutdownTimerPool()   # shutdown the pool and blocks till all
+##                                # timers are expired
 ##
 ##
 # TODO: shrinking of the pool is not implemented yet 
@@ -62,7 +62,7 @@ import times,sequtils,deques,locks, os
 # and retrieving some pool statistics is always blocking. The maximum
 # idle time is related to your timebase.
 # but once allocated, all actions on the timer itself could be blocking
-# or nonblocking dependend on the your needs 
+# or nonblocking dependend on your needs 
 #
 
 when not compileOption("threads"):

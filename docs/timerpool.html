@@ -1289,15 +1289,15 @@ function main() {
   <span class="Identifier">tpPtr</span> <span class="Operator">=</span> <span class="Identifier">poolRef2Ptr</span><span class="Punctuation">(</span><span class="Identifier">tpRef</span><span class="Punctuation">)</span>    <span class="Comment"># get ptr for api call</span>
   <span class="Identifier">timerhdl</span> <span class="Operator">=</span> <span class="Identifier">allocTimer</span><span class="Punctuation">(</span><span class="Identifier">tpPtr</span><span class="Punctuation">)</span>
 
-<span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">setAlarmCounter</span><span class="Punctuation">(</span><span class="DecNumber">5</span><span class="Punctuation">)</span>  <span class="Comment"># set expiration to 50ms</span>
+<span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">setAlarmCounter</span><span class="Punctuation">(</span><span class="DecNumber">5</span><span class="Punctuation">)</span>  <span class="Comment"># set expiration to 50ms (timebase * 5)</span>
 
-<span class="Keyword">while</span> <span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">getAlarmCounter</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">&gt;</span> <span class="DecNumber">0</span><span class="Punctuation">:</span> <span class="Comment"># you can poll to it</span>
-  <span class="Keyword">discard</span>                             <span class="Comment"># .. and may something useful here..</span>
+<span class="Keyword">while</span> <span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">getAlarmCounter</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Operator">&gt;</span> <span class="DecNumber">0</span><span class="Punctuation">:</span> <span class="Comment"># you can poll it</span>
+  <span class="Keyword">discard</span>                             <span class="Comment"># .. and may doing something useful here..</span>
 
-<span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">waitForAlarm</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Comment"># or sleep till timer expired</span>
-<span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">deallocTimer</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Comment"># pushes the timer back to pool</span>
-<span class="Identifier">tpRef</span><span class="Operator">.</span><span class="Identifier">shutdownTimerPool</span><span class="Punctuation">(</span><span class="Punctuation">)</span> <span class="Comment"># shutdown the pool and blocks till all</span>
-                          <span class="Comment"># timers are expired</span></pre></p>
+<span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">waitForAlarm</span><span class="Punctuation">(</span><span class="Punctuation">)</span>     <span class="Comment"># or sleep till timer expired</span>
+<span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">deallocTimer</span><span class="Punctuation">(</span><span class="Punctuation">)</span>     <span class="Comment"># pushes the timer back to pool</span>
+<span class="Identifier">tpRef</span><span class="Operator">.</span><span class="Identifier">shutdownTimerPool</span><span class="Punctuation">(</span><span class="Punctuation">)</span>   <span class="Comment"># shutdown the pool and blocks till all</span>
+                            <span class="Comment"># timers are expired</span></pre></p>
   <div class="section" id="6">
 <h1><a class="toc-backref" href="#6">Imports</a></h1>
 <dl class="item">
@@ -1448,7 +1448,7 @@ convenience template to get the TimerPoolPtr from the ref
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small>Made with Nim. Generated: 2017-11-02 19:01:11 UTC</small>
+        <small>Made with Nim. Generated: 2017-11-04 19:42:25 UTC</small>
       </div>
     </div>
   </div>

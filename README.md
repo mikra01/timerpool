@@ -13,5 +13,5 @@ At the moment only tested on the windows10 platform.
 Comments, bug reports and PR´s always welcome.
 
 to compile and run the tests type
-"nim tests" within the projects main directory
+"nim timerpool_tests" within the projects main directory
 

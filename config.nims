@@ -1,6 +1,6 @@
 import ospaths, strutils
 
-task tests, "run timerpool tests":
+task timerpool_tests, "run timerpool tests":
   withDir thisDir():
     switch("threads","on")
     switch("run")

@@ -84,8 +84,8 @@ suite "test_threading":
         tresult == 200
     
     test "early_wakeup":
-      # multiple threads are waiting on a timer and needs to be interrupted.
-      # due to that we dealloc the timer before done.
+      # multiple threads are waiting on a timer
+      # we dealloc the timer before it's done
       # all threads should wakeup immediately
       proc dosomething(timerhdl :TimerHandlePtr) : int =
                        result = 1

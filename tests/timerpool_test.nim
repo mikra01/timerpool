@@ -1,4 +1,4 @@
-import ../src/timerpool
+import ../timerpool
 import times,threadpool,os
 import unittest
 

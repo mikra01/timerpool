@@ -230,7 +230,7 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
   let 
     sptr : TimerPoolPtr = cast[TimerPoolPtr](TimerPoolptr)    
   var
-    allTHandles : seq[TimerHandleRef] = newSeq[TimerHandleRef](50)
+    allTHandles : seq[TimerHandleRef] = newSeq[TimerHandleRef](0)
     runningTimersCount : int 
     freedTimersCount : int 
     inactiveTimersCount : int 

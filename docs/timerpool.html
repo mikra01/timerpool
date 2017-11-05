@@ -1247,6 +1247,8 @@ function main() {
     title="shutdownTimerPool(tpref: TimerPoolRef): void"><wbr />shutdown<wbr />Timer<wbr />Pool<span class="attachedType" style="visibility:hidden">TimerPoolRef</span></a></li>
   <li><a class="reference" href="#allocTimer,TimerPoolPtr"
     title="allocTimer(tpptr: TimerPoolPtr): TimerHandlePtr"><wbr />alloc<wbr />Timer<span class="attachedType" style="visibility:hidden">TimerPoolPtr</span></a></li>
+  <li><a class="reference" href="#allocTimer,TimerPoolRef"
+    title="allocTimer(tpptr: TimerPoolRef): TimerHandlePtr"><wbr />alloc<wbr />Timer<span class="attachedType" style="visibility:hidden">TimerPoolRef</span></a></li>
   <li><a class="reference" href="#deallocTimer,TimerHandlePtr"
     title="deallocTimer(timerhdl: TimerHandlePtr): void"><wbr />dealloc<wbr />Timer<span class="attachedType" style="visibility:hidden">TimerHandlePtr</span></a></li>
   <li><a class="reference" href="#setAlarmCounter,TimerHandlePtr,Tickval"
@@ -1286,8 +1288,7 @@ function main() {
 
 <span class="Keyword">let</span>
   <span class="Identifier">tpRef</span> <span class="Operator">=</span> <span class="Identifier">timerpool</span><span class="Operator">.</span><span class="Identifier">newTimerPool</span><span class="Punctuation">(</span><span class="FloatNumber">10.</span><span class="Identifier">int</span><span class="Punctuation">)</span> <span class="Comment"># timerpool with 10ms timebase</span>
-  <span class="Identifier">tpPtr</span> <span class="Operator">=</span> <span class="Identifier">poolRef2Ptr</span><span class="Punctuation">(</span><span class="Identifier">tpRef</span><span class="Punctuation">)</span>    <span class="Comment"># get ptr for api call</span>
-  <span class="Identifier">timerhdl</span> <span class="Operator">=</span> <span class="Identifier">allocTimer</span><span class="Punctuation">(</span><span class="Identifier">tpPtr</span><span class="Punctuation">)</span>
+  <span class="Identifier">timerhdl</span> <span class="Operator">=</span> <span class="Identifier">allocTimer</span><span class="Punctuation">(</span><span class="Identifier">tpRef</span><span class="Punctuation">)</span>
 
 <span class="Identifier">timerhdl</span><span class="Operator">.</span><span class="Identifier">setAlarmCounter</span><span class="Punctuation">(</span><span class="DecNumber">5</span><span class="Punctuation">)</span>  <span class="Comment"># set expiration to 50ms (timebase * 5)</span>
 
@@ -1381,6 +1382,12 @@ creator proc. The tickval is of milliseconds and the default timebase is 100 mil
 
 
 </dd>
+<dt id="allocTimer"><a name="allocTimer,TimerPoolRef"></a><pre><span class="Keyword">proc</span> <span class="Identifier">allocTimer</span><span class="Other">(</span><span class="Identifier">tpptr</span><span class="Other">:</span> <span class="Identifier">TimerPoolRef</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">TimerHandlePtr</span> <span class="Other pragmabegin">{.</span><div class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">inline</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TPError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></div><span class="Other pragmaend">.}</span></pre></dt>
+<dd>
+
+
+</dd>
 <dt id="deallocTimer"><a name="deallocTimer,TimerHandlePtr"></a><pre><span class="Keyword">proc</span> <span class="Identifier">deallocTimer</span><span class="Other">(</span><span class="Identifier">timerhdl</span><span class="Other">:</span> <span class="Identifier">TimerHandlePtr</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">void</span> <span class="Other pragmabegin">{.</span><div class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TPError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></div><span class="Other pragmaend">.}</span></pre></dt>
 <dd>
 <p>the timer handle is pushed back to the pool. once freed it is not handled any more and its recycled for later use</p>
@@ -1448,7 +1455,7 @@ convenience template to get the TimerPoolPtr from the ref
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small>Made with Nim. Generated: 2017-11-04 19:42:25 UTC</small>
+        <small>Made with Nim. Generated: 2017-11-05 14:26:15 UTC</small>
       </div>
     </div>
   </div>

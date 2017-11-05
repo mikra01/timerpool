@@ -32,8 +32,7 @@ import times,sequtils,deques,locks, os
 ##
 ##    let
 ##      tpRef = timerpool.newTimerPool(10.int) # timerpool with 10ms timebase
-##      tpPtr = poolRef2Ptr(tpRef)    # get ptr for api call
-##      timerhdl = allocTimer(tpPtr)
+##      timerhdl = allocTimer(tpRef)
 ##  
 ##    timerhdl.setAlarmCounter(5)  # set expiration to 50ms (timebase * 5)
 ##   
@@ -450,6 +449,9 @@ proc allocTimer*(tpptr : TimerPoolPtr) : TimerHandlePtr {.gcsafe , raises: [TPEr
   validatePoolReply(threadContext) 
   result = threadContext.replyTimerHandlePtr
 
+proc allocTimer*(tpptr : TimerPoolRef) : TimerHandlePtr {.gcsafe ,inline, raises: [TPError].} =
+  return allocTimer(poolRef2Ptr(tpptr))
+  
 proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError].} =
   ## the timer handle is pushed back to the pool. 
   ## once freed it is not handled any more and its recycled for later use

@@ -16,5 +16,6 @@ At the moment only tested on the windows10 platform.
 Comments, bug reports and PR´s always welcome.
 
 to compile and run the tests type
-"nim timerpool_tests" within the projects main directory 
+"nim timerpool_tests" within the projects main directory after cloning the repository. The tests
+itself are not installed via the nimble installation
 

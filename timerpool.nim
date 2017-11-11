@@ -115,11 +115,12 @@ type
   # for low resource environments an array could be used instead
   CmdQueuePtr = ptr Deque[PmsgPtr]
   CmdQueue = Deque[PmsgPtr]
+  ThreadArg = tuple[poolobjptr:SomePtr,mintimers:int]
   
 type
   TimerPool = object
     timebase : int         # the timebase of the tickthread
-    tickthread : Thread[SomePtr]
+    tickthread : Thread[ThreadArg]
     # Lock for accessing the cmd-queue and check for poolShutdownDone
     poolReqLock : Lock
     cmdQueue {.guard: poolReqLock.} : CmdQueue 
@@ -225,9 +226,12 @@ proc findFreeTimer(sptr : seq[TimerHandleRef] ) : TimerHandleRef =
     break
 
 
-proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
+proc timerPoolWorkLoop(startupcontext : ThreadArg) {.thread.} =
+  #  ThreadArg = tuple[poolobjptr:SomePtr,mintimers:int]
+  # TimerPoolptr : SomePtr,minimumTimers : int
   let 
-    sptr : TimerPoolPtr = cast[TimerPoolPtr](TimerPoolptr)    
+    sptr : TimerPoolPtr = cast[TimerPoolPtr](startupcontext.poolobjptr)    
+    mintimers : int = startupcontext.mintimers
   var
     allTHandles : seq[TimerHandleRef] = newSeq[TimerHandleRef](0)
     runningTimersCount : int 
@@ -236,7 +240,7 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
     shutdownState : ShutdownState = ShutdownState.poolRunning
     currTime : float    
     poolIdle : bool   # true if all timers freed
-
+    
   poolIdle = false
 
   while true:
@@ -249,7 +253,7 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
     freedTimersCount = 0
     inactiveTimersCount = 0
        
-    if not poolIdle:  
+    if not poolIdle:  # perform pool scan
       for i in allTHandles.low .. allTHandles.high:
         let timer = allTHandles[i]
         if not timer.isNil:  
@@ -269,6 +273,9 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
               # we call signal for each waiting thread
     
     poolIdle = (runningTimersCount + inactiveTimersCount) == 0  
+    # TODO: perform sleep if the pool stays for given amount of cycles idle
+    # we need a new signal which must be sent every time when a new command
+    # is put into the queue
 
     if shutdownState == ShutdownState.poolRunning:
       # read out the queue. for each run we consume the entire queue
@@ -291,7 +298,7 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
             if timerHandle.isNil:
               # initialise new handle
               # as stated here by araq https://forum.nim-lang.org/t/104
-              # allocShared is not needed (also see TimerPool construction)
+              # allocShared is not needed (also see TimerPool ctor)
               # and the gc does the job for us
               timerhandle = cast[TimerHandleRef]
                               (new TimerHandle)
@@ -316,8 +323,9 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
            
           of killPool:
             shutdownState = ShutdownState.shutdownRequested
-          of shrinkPool:
-            discard                   
+          of shrinkPool: 
+            if freedTimersCount > minTimers:
+              discard
             # todo: implement shrink 
             #(removal of some freed handles if exceed watermark) 
           else:
@@ -348,7 +356,7 @@ proc timerPoolWorkLoop(TimerPoolptr : SomePtr) {.thread.} =
       sleep( sptr.timebase - msused )
 
   
-proc createTimerPool( tbase : int ) : ref TimerPool =
+proc createTimerPool( tbase : int) : ref TimerPool =
   result = new TimerPool
   result.timebase = tbase
   result.spawningThreadId = getThreadId()  
@@ -361,6 +369,7 @@ proc createTimerPool( tbase : int ) : ref TimerPool =
 # public api
 type
   Tickval* = range[1..int.high]
+  MinTimerval* = range[1..int.high]
     ## integer type used to initialise the timerpool and to set the 
     ## timeout of the timer
 
@@ -382,13 +391,15 @@ proc initThreadContext*(tpptr : TimerPoolPtr) : void {.raises: [TPError].} =
   checkIfSpawningThread(tpptr)
   initThreadvar()
   
-proc newTimerPool*(tbase_ms : Tickval = 100) : ref TimerPool {.gcsafe.} =
+proc newTimerPool*(tbase_ms : Tickval = 100, mintimers : MinTimerval = 10) : ref TimerPool {.gcsafe.} =
   ## creator proc.   
   ## The tickval is of milliseconds and 
   ## the default timebase is 100 milliseconds
+  ## the default of the mintimers parameter is 10 (shrink_pool leave this
+  ## minimum amount of timers within the pool)
   result = createTimerPool(tbase_ms)
   initThreadvar()
-  createThread(result.tickthread,timerPoolWorkLoop,cast[SomePtr](result))
+  createThread(result.tickthread,timerPoolWorkLoop,(cast[SomePtr](result),cast[int](mintimers)))
 
 proc deinitThreadContext*(tpptr : TimerPoolPtr) : void {.gcsafe , raises: [TPError].} =
   ## call this proc if the pool-accessing thread should be
@@ -405,7 +416,7 @@ proc shutdownTimerPool*(tpref :  TimerPoolRef ) : void {.gcsafe.} =
   ##
   ## this call blocks till all timers are fired
   ## also only the spawning/owning thread is allowed to shutdown the pool
-  ## this is guarded/ensured by the ref-parameter type
+  ## this is guarded/ensured by the ref-parameter type within the public ctor
   threadContext.cmd = PoolCmd.killPool
   withLock(tpref.poolReqLock):
     tpref.cmdqueue.addLast(cast[PMsgPtr](threadContext))  
@@ -454,7 +465,7 @@ proc allocTimer*(tpptr : TimerPoolRef) : TimerHandlePtr {.gcsafe ,inline, raises
   
 proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError].} =
   ## the timer handle is pushed back to the pool. 
-  ## once freed it is not handled any more and its recycled for later use
+  ## once freed it is not handled by the timerscan any more and its recycled for later use
   ##
   ## this proc could be called from multiple threads simultaneously.
   ## if one ore more threads are waiting on the timers signal all threads 

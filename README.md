@@ -9,7 +9,7 @@ event purpose only
 
 the module documentation can be found [here](https://mikra01.github.io/timerpool/timerpool.html) 
 
-# installation
+#### installation
 nimble install timerpool
 
 At the moment only tested on the windows10 platform.

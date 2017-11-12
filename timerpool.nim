@@ -553,8 +553,8 @@ proc waitForGetStats*(tpptr : TimerPoolPtr) : PoolStats {.gcsafe , raises: [TPEr
   result.inactiveCount = threadContext.statInactiveTimers
 
 proc shrinkTimerPool*(tpptr : TimerPoolPtr) {.gcsafe , raises: [TPError].} =
-  ## shrinks the pool for freed Timers.
-  ## the given minFreedTimers value specifies the lower watermark
+  ## shrinks the pool of freed Timers.
+  ## the given minFreedTimers value at pool construction specifies the lower watermark
   ## 
   ## this is a nonblocking call.  
   ## raises TPError if the pointer parameter is nil and/or the threadContext

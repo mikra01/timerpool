@@ -5,8 +5,9 @@ import unittest
 suite "general_tests":
     setup:
       var
-        stpRef = timerpool.newTimerPool(10.int)
-        timerhdls = newSeq[TimerHandlePtr](5)
+        stpRef = timerpool.newTimerPool(10.int,1.int)
+        timerhdls = newSeq[TimerHandlePtr](10)
+        stpPtr = poolRef2Ptr(stpRef)
       for i in timerhdls.low .. timerhdls.high:
         timerhdls[i] = poolRef2Ptr(stpRef).allocTimer()
     
@@ -19,23 +20,39 @@ suite "general_tests":
       # set all timers fire after 5 ticks
       for i in timerhdls.low .. timerhdls.high:
         timerhdls[i].setAlarmCounter(5.int) # run for about 50ms (timerbase*5)
-      var statsBefore : PoolStats = (cast[TimerPoolPtr](stpRef))
-                                      .waitForGetStats
+      var statsBefore : PoolStats = stpPtr.waitForGetStats
       sleep(70) # wait till timer fired
-      var statsAfter  = poolRef2Ptr(stpRef).waitForGetStats
-      for i in timerhdls.low .. timerhdls.high:
-        timerhdls[i].deallocTimer()
-      var statsFinal  = poolRef2Ptr(stpRef).waitForGetStats
+      var statsAfter  = stpPtr.waitForGetStats
+      for i in timerhdls:
+        i.deallocTimer()
+      var statsFinal  = stpPtr.waitForGetStats
       check:
-        statsBefore.runningCount == 5
+        statsBefore.runningCount == 10
         statsBefore.freedCount == 0
         statsBefore.inactiveCount == 0
         statsAfter.runningCount == 0
         statsAfter.freedCount == 0
-        statsAfter.inactiveCount == 5
+        statsAfter.inactiveCount == 10
         statsFinal.runningCount == 0
-        statsFinal.freedCount == 5
+        statsFinal.freedCount == 10
         statsFinal.inactiveCount == 0
+
+    test "shrinkPool":
+      for i in timerhdls:
+        i.deallocTimer()
+      var statsAfterDealloc  = stpPtr.waitForGetStats
+      stpPtr.shrinkTimerPool
+      sleep(500)
+      var statsAfterShrink  = stpPtr.waitForGetStats
+        
+      check:
+        statsAfterDealloc.runningCount == 0
+        statsAfterDealloc.freedCount == 10
+        statsAfterDealloc.inactiveCount == 0
+        statsAfterShrink.runningCount == 0
+        statsAfterShrink.freedCount == 1
+        statsAfterShrink.inactiveCount == 0
+    
 
     test "timerExceptions":
         for i in timerhdls.low .. timerhdls.high:

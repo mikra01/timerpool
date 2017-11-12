@@ -115,7 +115,7 @@ type
   # for low resource environments an array could be used instead
   CmdQueuePtr = ptr Deque[PmsgPtr]
   CmdQueue = Deque[PmsgPtr]
-  ThreadArg = tuple[poolobjptr:SomePtr,mintimers:int]
+  ThreadArg = tuple[poolobjptr:SomePtr,minFreedTimers:int]
   
 type
   TimerPool = object
@@ -231,7 +231,7 @@ proc timerPoolWorkLoop(startupcontext : ThreadArg) {.thread.} =
   # TimerPoolptr : SomePtr,minimumTimers : int
   let 
     sptr : TimerPoolPtr = cast[TimerPoolPtr](startupcontext.poolobjptr)    
-    mintimers : int = startupcontext.mintimers
+    mintimers : int = startupcontext.minFreedTimers
   var
     allTHandles : seq[TimerHandleRef] = newSeq[TimerHandleRef](0)
     runningTimersCount : int 
@@ -250,10 +250,10 @@ proc timerPoolWorkLoop(startupcontext : ThreadArg) {.thread.} =
     currTime = cpuTime()
   
     runningTimersCount = 0
-    freedTimersCount = 0
     inactiveTimersCount = 0
        
     if not poolIdle:  # perform pool scan
+      freedTimersCount = 0  # preserve the last known value if poolIdle
       for i in allTHandles.low .. allTHandles.high:
         let timer = allTHandles[i]
         if not timer.isNil:  
@@ -286,7 +286,7 @@ proc timerPoolWorkLoop(startupcontext : ThreadArg) {.thread.} =
         let cmdqueueptr : CmdQueuePtr = cast[CmdQueuePtr]
                                          (sptr.cmdQueue.addr)
 
-        while cmdqueueptr[].len > 0:      
+        while cmdqueueptr[].len > 0:
           let pmsgptr : PMsgPtr = cmdqueueptr[].popLast
           let activeCommand = pmsgptr.cmd
            
@@ -323,11 +323,30 @@ proc timerPoolWorkLoop(startupcontext : ThreadArg) {.thread.} =
            
           of killPool:
             shutdownState = ShutdownState.shutdownRequested
-          of shrinkPool: 
+          
+          of shrinkPool:
             if freedTimersCount > minTimers:
-              discard
-            # todo: implement shrink 
-            #(removal of some freed handles if exceed watermark) 
+              freedTimersCount = 0 
+              var 
+                newAllTHandles : seq[TimerHandleRef] = newSeq[TimerHandleRef](
+                                                            runningTimersCount+
+                                                            inactiveTimersCount+minTimers)
+                newIdx : int = 0
+                recoveredCount : int = 0
+ 
+              for hdl in allTHandles:
+                if not hdl.isNil:
+                  if not hdl.timerFreed  or  recoveredCount < minTimers:
+                    newAllTHandles[newIdx] = hdl
+                    inc newIdx
+           
+                    if hdl.timerFreed:
+                      inc recoveredCount
+                      inc freedTimersCount
+              
+              allTHandles.delete(allTHandles.low,allTHandles.high)
+              allTHandles = newAllTHandles
+ 
           else:
             discard
 
@@ -391,15 +410,15 @@ proc initThreadContext*(tpptr : TimerPoolPtr) : void {.raises: [TPError].} =
   checkIfSpawningThread(tpptr)
   initThreadvar()
   
-proc newTimerPool*(tbase_ms : Tickval = 100, mintimers : MinTimerval = 10) : ref TimerPool {.gcsafe.} =
+proc newTimerPool*(tbase_ms : Tickval = 100, minFreedTimers : MinTimerval = 5) : ref TimerPool {.gcsafe.} =
   ## creator proc.   
   ## The tickval is of milliseconds and 
   ## the default timebase is 100 milliseconds
-  ## the default of the mintimers parameter is 10 (shrink_pool leave this
-  ## minimum amount of timers within the pool)
+  ## the default of the mintimers parameter is 5 (shrink_pool leave this
+  ## minimum amount of freed timers within the pool)
   result = createTimerPool(tbase_ms)
   initThreadvar()
-  createThread(result.tickthread,timerPoolWorkLoop,(cast[SomePtr](result),cast[int](mintimers)))
+  createThread(result.tickthread,timerPoolWorkLoop,(cast[SomePtr](result),cast[int](minFreedTimers)))
 
 proc deinitThreadContext*(tpptr : TimerPoolPtr) : void {.gcsafe , raises: [TPError].} =
   ## call this proc if the pool-accessing thread should be
@@ -533,4 +552,16 @@ proc waitForGetStats*(tpptr : TimerPoolPtr) : PoolStats {.gcsafe , raises: [TPEr
   result.freedCount = threadContext.statFreedTimers
   result.inactiveCount = threadContext.statInactiveTimers
 
-
+proc shrinkTimerPool*(tpptr : TimerPoolPtr) {.gcsafe , raises: [TPError].} =
+  ## shrinks the pool for freed Timers.
+  ## the given minFreedTimers value specifies the lower watermark
+  ## 
+  ## this is a nonblocking call.  
+  ## raises TPError if the pointer parameter is nil and/or the threadContext
+  ## was not initialised with initThreadContext (only needed if the pool was not
+  ## spawned by the caller
+  checkForNil(tpptr,"shrinkPool")
+  checkForValidThreadContext()
+  threadContext.cmd = PoolCmd.shrinkPool  
+  withLock(tpptr.poolReqLock):
+    tpptr.cmdqueue.addLast(msgRef2Ptr(threadContext))    

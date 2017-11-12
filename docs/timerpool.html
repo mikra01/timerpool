@@ -1229,6 +1229,8 @@ function main() {
     title="TimerPoolRef = ref TimerPool"><wbr />Timer<wbr />Pool<wbr />Ref<span class="attachedType" style="visibility:hidden"></span></a></li>
   <li><a class="reference" href="#Tickval"
     title="Tickval = range[1 .. int.high]"><wbr />Tickval<span class="attachedType" style="visibility:hidden"></span></a></li>
+  <li><a class="reference" href="#MinTimerval"
+    title="MinTimerval = range[1 .. int.high]"><wbr />Min<wbr />Timerval<span class="attachedType" style="visibility:hidden"></span></a></li>
   <li><a class="reference" href="#PoolStats"
     title="PoolStats = tuple[runningCount: int, freedCount: int, inactiveCount: int]"><wbr />Pool<wbr />Stats<span class="attachedType" style="visibility:hidden"></span></a></li>
 
@@ -1239,8 +1241,8 @@ function main() {
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#initThreadContext,TimerPoolPtr"
     title="initThreadContext(tpptr: TimerPoolPtr): void"><wbr />init<wbr />Thread<wbr />Context<span class="attachedType" style="visibility:hidden">TimerPoolPtr</span></a></li>
-  <li><a class="reference" href="#newTimerPool,Tickval"
-    title="newTimerPool(tbase_ms: Tickval = 100): ref TimerPool"><wbr />new<wbr />Timer<wbr />Pool<span class="attachedType" style="visibility:hidden">Tickval</span></a></li>
+  <li><a class="reference" href="#newTimerPool,Tickval,MinTimerval"
+    title="newTimerPool(tbase_ms: Tickval = 100; minFreedTimers: MinTimerval = 5): ref TimerPool"><wbr />new<wbr />Timer<wbr />Pool<span class="attachedType" style="visibility:hidden">Tickval</span></a></li>
   <li><a class="reference" href="#deinitThreadContext,TimerPoolPtr"
     title="deinitThreadContext(tpptr: TimerPoolPtr): void"><wbr />deinit<wbr />Thread<wbr />Context<span class="attachedType" style="visibility:hidden">TimerPoolPtr</span></a></li>
   <li><a class="reference" href="#shutdownTimerPool,TimerPoolRef"
@@ -1259,6 +1261,8 @@ function main() {
     title="waitForAlarm(timerhdl: TimerHandlePtr): void"><wbr />wait<wbr />For<wbr />Alarm<span class="attachedType" style="visibility:hidden">TimerHandlePtr</span></a></li>
   <li><a class="reference" href="#waitForGetStats,TimerPoolPtr"
     title="waitForGetStats(tpptr: TimerPoolPtr): PoolStats"><wbr />wait<wbr />For<wbr />Get<wbr />Stats<span class="attachedType" style="visibility:hidden">TimerPoolPtr</span></a></li>
+  <li><a class="reference" href="#shrinkTimerPool,TimerPoolPtr"
+    title="shrinkTimerPool(tpptr: TimerPoolPtr)"><wbr />shrink<wbr />Timer<wbr />Pool<span class="attachedType" style="visibility:hidden">TimerPoolPtr</span></a></li>
 
   </ul>
 </li>
@@ -1330,6 +1334,11 @@ used to shutdown the pool by the spawning thread
 </dd>
 <dt id="Tickval"><a name="Tickval"></a><pre><span class="Identifier">Tickval</span> <span class="Other">=</span> <span class="Identifier">range</span><span class="Other">[</span><span class="DecNumber">1</span> <span class="Operator">..</span> <span class="Identifier">int</span><span class="Other">.</span><span class="Identifier">high</span><span class="Other">]</span></pre></dt>
 <dd>
+
+
+</dd>
+<dt id="MinTimerval"><a name="MinTimerval"></a><pre><span class="Identifier">MinTimerval</span> <span class="Other">=</span> <span class="Identifier">range</span><span class="Other">[</span><span class="DecNumber">1</span> <span class="Operator">..</span> <span class="Identifier">int</span><span class="Other">.</span><span class="Identifier">high</span><span class="Other">]</span></pre></dt>
+<dd>
 integer type used to initialise the timerpool and to set the timeout of the timer
 
 </dd>
@@ -1350,11 +1359,11 @@ container type returned by waitForGetStats. the sum of runningCount,freedCount a
 
 
 </dd>
-<dt id="newTimerPool"><a name="newTimerPool,Tickval"></a><pre><span class="Keyword">proc</span> <span class="Identifier">newTimerPool</span><span class="Other">(</span><span class="Identifier">tbase_ms</span><span class="Other">:</span> <span class="Identifier">Tickval</span> <span class="Other">=</span> <span class="DecNumber">100</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">TimerPool</span> <span class="Other pragmabegin">{.</span><div class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">ResourceExhaustedError</span><span class="Other">,</span> <span class="Identifier">IndexError</span><span class="Other">]</span><span class="Other">,</span>
+<dt id="newTimerPool"><a name="newTimerPool,Tickval,MinTimerval"></a><pre><span class="Keyword">proc</span> <span class="Identifier">newTimerPool</span><span class="Other">(</span><span class="Identifier">tbase_ms</span><span class="Other">:</span> <span class="Identifier">Tickval</span> <span class="Other">=</span> <span class="DecNumber">100</span><span class="Other">;</span> <span class="Identifier">minFreedTimers</span><span class="Other">:</span> <span class="Identifier">MinTimerval</span> <span class="Other">=</span> <span class="DecNumber">5</span><span class="Other">)</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">TimerPool</span> <span class="Other pragmabegin">{.</span><div class="pragma">
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">ResourceExhaustedError</span><span class="Other">,</span> <span class="Identifier">IndexError</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">TimeEffect</span><span class="Other">]</span></div><span class="Other pragmaend">.}</span></pre></dt>
 <dd>
-creator proc. The tickval is of milliseconds and the default timebase is 100 milliseconds
+creator proc. The tickval is of milliseconds and the default timebase is 100 milliseconds the default of the mintimers parameter is 5 (shrink_pool leave this minimum amount of freed timers within the pool)
 
 </dd>
 <dt id="deinitThreadContext"><a name="deinitThreadContext,TimerPoolPtr"></a><pre><span class="Keyword">proc</span> <span class="Identifier">deinitThreadContext</span><span class="Other">(</span><span class="Identifier">tpptr</span><span class="Other">:</span> <span class="Identifier">TimerPoolPtr</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">void</span> <span class="Other pragmabegin">{.</span><div class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TPError</span><span class="Other">]</span><span class="Other">,</span>
@@ -1369,7 +1378,7 @@ creator proc. The tickval is of milliseconds and the default timebase is 100 mil
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></div><span class="Other pragmaend">.}</span></pre></dt>
 <dd>
 <p>shuts down the timerpool (graceful) and frees all resources (timerHandles and the pool itself)</p>
-<p>this call blocks till all timers are fired also only the spawning/owning thread is allowed to shutdown the pool this is guarded/ensured by the ref-parameter type</p>
+<p>this call blocks till all timers are fired also only the spawning/owning thread is allowed to shutdown the pool this is guarded/ensured by the ref-parameter type within the public ctor</p>
 
 
 </dd>
@@ -1390,7 +1399,7 @@ creator proc. The tickval is of milliseconds and the default timebase is 100 mil
 </dd>
 <dt id="deallocTimer"><a name="deallocTimer,TimerHandlePtr"></a><pre><span class="Keyword">proc</span> <span class="Identifier">deallocTimer</span><span class="Other">(</span><span class="Identifier">timerhdl</span><span class="Other">:</span> <span class="Identifier">TimerHandlePtr</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">void</span> <span class="Other pragmabegin">{.</span><div class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TPError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></div><span class="Other pragmaend">.}</span></pre></dt>
 <dd>
-<p>the timer handle is pushed back to the pool. once freed it is not handled any more and its recycled for later use</p>
+<p>the timer handle is pushed back to the pool. once freed it is not handled by the timerscan any more and its recycled for later use</p>
 <p>this proc could be called from multiple threads simultaneously. if one ore more threads are waiting on the timers signal all threads gets informed. This call is part of the nonblocking api</p>
 <p>raises TPError if the pointer parameter is nil</p>
 
@@ -1430,6 +1439,13 @@ creator proc. The tickval is of milliseconds and the default timebase is 100 mil
 
 
 </dd>
+<dt id="shrinkTimerPool"><a name="shrinkTimerPool,TimerPoolPtr"></a><pre><span class="Keyword">proc</span> <span class="Identifier">shrinkTimerPool</span><span class="Other">(</span><span class="Identifier">tpptr</span><span class="Other">:</span> <span class="Identifier">TimerPoolPtr</span><span class="Other">)</span> <span class="Other pragmabegin">{.</span><div class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TPError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></div><span class="Other pragmaend">.}</span></pre></dt>
+<dd>
+<p>shrinks the pool for freed Timers. the given minFreedTimers value specifies the lower watermark</p>
+<p>this is a nonblocking call. raises TPError if the pointer parameter is nil and/or the threadContext was not initialised with initThreadContext (only needed if the pool was not spawned by the caller</p>
+
+
+</dd>
 
 </dl></div>
 <div class="section" id="18">
@@ -1455,7 +1471,7 @@ convenience template to get the TimerPoolPtr from the ref
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small>Made with Nim. Generated: 2017-11-05 14:26:15 UTC</small>
+        <small>Made with Nim. Generated: 2017-11-12 13:15:17 UTC</small>
       </div>
     </div>
   </div>

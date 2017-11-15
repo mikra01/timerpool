@@ -1441,7 +1441,7 @@ creator proc. The tickval is of milliseconds and the default timebase is 100 mil
 </dd>
 <dt id="shrinkTimerPool"><a name="shrinkTimerPool,TimerPoolPtr"></a><pre><span class="Keyword">proc</span> <span class="Identifier">shrinkTimerPool</span><span class="Other">(</span><span class="Identifier">tpptr</span><span class="Other">:</span> <span class="Identifier">TimerPoolPtr</span><span class="Other">)</span> <span class="Other pragmabegin">{.</span><div class="pragma"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TPError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></div><span class="Other pragmaend">.}</span></pre></dt>
 <dd>
-<p>shrinks the pool for freed Timers. the given minFreedTimers value specifies the lower watermark</p>
+<p>shrinks the pool of freed Timers. the given minFreedTimers value at pool construction specifies the lower watermark</p>
 <p>this is a nonblocking call. raises TPError if the pointer parameter is nil and/or the threadContext was not initialised with initThreadContext (only needed if the pool was not spawned by the caller</p>
 
 
@@ -1471,7 +1471,7 @@ convenience template to get the TimerPoolPtr from the ref
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small>Made with Nim. Generated: 2017-11-12 13:15:17 UTC</small>
+        <small>Made with Nim. Generated: 2017-11-15 22:41:08 UTC</small>
       </div>
     </div>
   </div>

@@ -8,6 +8,7 @@ suite "general_tests":
         stpRef = timerpool.newTimerPool(10.int,1.int)
         timerhdls = newSeq[TimerHandlePtr](10)
         stpPtr = poolRef2Ptr(stpRef)
+
       for i in timerhdls.low .. timerhdls.high:
         timerhdls[i] = poolRef2Ptr(stpRef).allocTimer()
     

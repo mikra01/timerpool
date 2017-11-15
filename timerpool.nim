@@ -63,9 +63,11 @@ import times,sequtils,deques,locks, os
 # but once allocated, all actions on the timer itself could be blocking
 # or nonblocking dependend on your needs 
 #
-# tested with gcc 
+# tested with gcc(x64) 
 # Thread model: posix
 # gcc version 5.1.0 (tdm64-1)
+#
+# cl.exe 19.11.25507.1(x64)
 
 when not compileOption("threads"):
   {.error: "TimerPool requires --threads:on option.".}
@@ -73,20 +75,30 @@ when not compileOption("threads"):
 when defined(vcc):
   when defined(cpp):
     when sizeof(int) == 8:
-      proc exchange*(p:ptr int,val:int) : int {.
+      proc interlExchange*[T: bool|int|ptr](p:ptr T,val:T) : T {.
         importcpp: "_InterlockedExchange64(static_cast<NI volatile *>(#), #)",
-        header: "<intrin.h>".}  
+          header: "<intrin.h>".}  
+      proc interlAnd*[T: bool|int|ptr](p:ptr T,val:T) : T {.
+        importcpp: "_InterlockedAnd64(static_cast<NI volatile *>(#), #)",
+          header: "<intrin.h>".}     
     else:
-      proc exchange*(p : ptr int, val: int): int {.
+      proc interlExchange*[T: bool|int|ptr](p : ptr T, val: T): T {.
         importcpp: "_InterlockedExchange(reinterpret_cast<LONG volatile *>(#), static_cast<LONG>(#))",
-        header: "<intrin.h>".}
+          header: "<intrin.h>".}
+      proc interlAnd*[T: bool|int|ptr](p:ptr T,val:T) : T {.
+        importcpp: "_InterlockedAnd(reinterpret_cast<LONG volatile *>(#), static_cast<LONG>(#))",
+          header: "<intrin.h>".}
   else:
     when sizeof(int) == 8:
-      proc exchange*(p:ptr int, val : int) : int {.
+      proc interlExchange*[T: bool|int|ptr](p:ptr T, val : T) : T {.
         importc: "_InterlockedExchange64", header: "<intrin.h>".}
+      proc interlAnd*[T: bool|int|ptr](p:ptr T, val : T) : T {.
+        importc: "_InterlockedAnd64", header: "<intrin.h>".}
     else:
-      proc exchange*(p : ptr int, val: int) : int {.
+      proc interlExchange*[T: bool|int|ptr](p : ptr T, val: T) : T {.
         importc: "_InterlockedExchange", header: "<intrin.h>".}
+      proc interlAnd*[T: bool|int|ptr](p:ptr T, val : T) : T {.
+        importc: "_InterlockedAnd", header: "<intrin.h>".}
     
   
 type
@@ -95,7 +107,7 @@ type
     alarmctr : int      # countdown field
     waitLock : Lock     # lock used for the blocking-style alarm api
     waitCond : Cond     # condition associated to the waitLock
-    timerFreed : bool   # true if the owner of the handle is the pool
+    isFreed : bool   # true if the owner of the handle is the pool
     waitingOnLockCount : int # counts how many threads waiting on the lock. needed
                              # that no signal is lost 
     
@@ -156,24 +168,36 @@ type
     ## used to shutdown 
     ## the pool by the spawning thread
 
-# generic templates for both API and workerthread  
-template atomicLoad[T](t: T ) : T =
-  atomicLoadN[T](t.addr,ATOMIC_ACQ_REL) 
+when defined(gcc):
+  # generic templates for both API and workerthread
+  # C11  
+  template atomicLoad[T](t: T ) : T =
+    atomicLoadN[T](t.addr,ATOMIC_ACQ_REL) 
 
-template atomicStore[T](t : T, t1 : T) =  
-  atomicStoreN[T](t.addr,t1,ATOMIC_ACQ_REL) 
+  template atomicStore[T](t : T, t1 : T) =  
+    atomicStoreN[T](t.addr,t1,ATOMIC_ACQ_REL) 
+
+when defined(vcc):
+  # generic templates for both API and workerthread
+  # properitary  
+  template atomicLoad[T](t: T ) : T =
+    interlAnd[T](t.addr,T.high) # won´t work for unsigned types
+
+  template atomicStore[T](t : T, t1 : T) =  
+    discard interlExchange[T](t.addr,t1) 
+
 
 # timer_state templates
 template timerRunning(timerref : TimerHandleRef) : bool =
-  not atomicLoad[bool](timerref[].timerFreed) and 
+  not atomicLoad[bool](timerref[].isFreed) and 
     atomicLoad[int](timerref[].alarmctr) > 0
 
 template timerDone(timerref : TimerHandleRef) : bool =
-  not atomicLoad[bool](timerref[].timerFreed) and 
+  not atomicLoad[bool](timerref[].isFreed) and 
     atomicLoad[int](timerref[].alarmctr) == 0
 
 template timerFreed(timerref : TimerHandleRef) : bool =
-  atomicLoad[bool](timerref.timerFreed)
+  atomicLoad[bool](timerref.isFreed)
 
 template threadWaiting(timerref : TimerHandleRef) : bool =
   atomicLoad[int](timerref.waitingOnLockCount) > 0
@@ -205,7 +229,7 @@ template msgRef2Ptr(pmsgref : PMsgRef ) : PMsgPtr =
   (cast[PMsgPtr](pmsgref))
 
 template abortWhenTimerFreed(timerhdl : TimerHandlePtr, p : string) =
-  if atomicLoad[bool](timerhdl.timerFreed):
+  if atomicLoad[bool](timerhdl.isFreed):
     # TODO: provide better debug info which timer was freed 
     # and from which source to trackdown nasty sharing errors
     raise newException(TPError,p & "timer already freed ")
@@ -234,7 +258,7 @@ type
   # are freed and the workerthread bails out
          
 proc findFreeTimer(sptr : seq[TimerHandleRef] ) : TimerHandleRef =
-  # searches for an unused timerhdl (timerFreed) 
+  # searches for an unused timerhdl (isFreed) 
   # nil is returned if no unused timerhdl present  
   result = nil
   
@@ -329,7 +353,7 @@ proc timerPoolWorkLoop(startupcontext : ThreadArg) {.thread.} =
               allTHandles.add(timerHandle)
             # recycled handle found 
             timerHandle.alarmctr = 0
-            timerHandle.timerFreed = false
+            timerHandle.isFreed = false
             timerHandle.waitingOnLockCount = 0
             # send response back to calling thread
             pmsgptr.reply = PoolReply.success
@@ -358,11 +382,11 @@ proc timerPoolWorkLoop(startupcontext : ThreadArg) {.thread.} =
  
               for hdl in allTHandles:
                 if not hdl.isNil:
-                  if not hdl.timerFreed  or  recoveredCount < minTimers:
+                  if not hdl.isFreed  or  recoveredCount < minTimers:
                     newAllTHandles[newIdx] = hdl
                     inc newIdx
            
-                    if hdl.timerFreed:
+                    if hdl.isFreed:
                       inc recoveredCount
                       inc freedTimersCount
               
@@ -515,7 +539,7 @@ proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError
   ## raises TPError if the pointer parameter is nil
   checkForNil(timerhdl,"deallocTimer")
   abortWhenTimerFreed(timerhdl,"deallocTimer")
-  atomicStore[bool](timerhdl.timerFreed,true)
+  atomicStore[bool](timerhdl.isFreed,true)
 
 proc setAlarmCounter*(timerhdl : TimerHandlePtr , value : Tickval ) : void {.gcsafe , raises: [TPError].} =
   ## sets the timers countdown alarm-value to the given one.

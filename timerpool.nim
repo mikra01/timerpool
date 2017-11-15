@@ -63,10 +63,32 @@ import times,sequtils,deques,locks, os
 # but once allocated, all actions on the timer itself could be blocking
 # or nonblocking dependend on your needs 
 #
+# tested with gcc 
+# Thread model: posix
+# gcc version 5.1.0 (tdm64-1)
 
 when not compileOption("threads"):
   {.error: "TimerPool requires --threads:on option.".}
 
+when defined(vcc):
+  when defined(cpp):
+    when sizeof(int) == 8:
+      proc exchange*(p:ptr int,val:int) : int {.
+        importcpp: "_InterlockedExchange64(static_cast<NI volatile *>(#), #)",
+        header: "<intrin.h>".}  
+    else:
+      proc exchange*(p : ptr int, val: int): int {.
+        importcpp: "_InterlockedExchange(reinterpret_cast<LONG volatile *>(#), static_cast<LONG>(#))",
+        header: "<intrin.h>".}
+  else:
+    when sizeof(int) == 8:
+      proc exchange*(p:ptr int, val : int) : int {.
+        importc: "_InterlockedExchange64", header: "<intrin.h>".}
+    else:
+      proc exchange*(p : ptr int, val: int) : int {.
+        importc: "_InterlockedExchange", header: "<intrin.h>".}
+    
+  
 type
   TimerHandle = object
     # the timer is active if alarmctr > 0 and not freed

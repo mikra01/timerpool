@@ -12,7 +12,9 @@ the module documentation can be found [here](https://mikra01.github.io/timerpool
 #### installation
 nimble install timerpool
 
-At the moment only tested on the windows10 platform.
+At the moment only tested on the windows10 platform and gcc.
+unfortunately not working actually with vcc (different api and some intrinsics missing)
+
 Comments, bug reports and PR´s always welcome.
 
 to compile and run the tests type

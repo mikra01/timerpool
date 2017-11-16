@@ -45,8 +45,7 @@ import times,sequtils,deques,locks, os
 ##                                # timers are expired
 ##
 ##
-# TODO: shrinking of the pool is not implemented yet 
-#       at the moment only tested on windows10 (Intel N3540)     
+# TODO: test more envs - at the moment only tested on windows10 (Intel N3540,x64)     
 #
 #
 # some implementation hints: 
@@ -80,7 +79,10 @@ when defined(vcc):
           header: "<intrin.h>".}  
       proc interlAnd*[T: bool|int|ptr](p:ptr T,val:T) : T {.
         importcpp: "_InterlockedAnd64(static_cast<NI volatile *>(#), #)",
-          header: "<intrin.h>".}     
+          header: "<intrin.h>".} 
+      proc interlOr*[T: bool|int|ptr](p:ptr T,val:T) : T {.
+        importcpp: "_InterlockedOr64(static_cast<NI volatile *>(#), #)",
+          header: "<intrin.h>".}   
     else:
       proc interlExchange*[T: bool|int|ptr](p : ptr T, val: T): T {.
         importcpp: "_InterlockedExchange(reinterpret_cast<LONG volatile *>(#), static_cast<LONG>(#))",
@@ -88,17 +90,24 @@ when defined(vcc):
       proc interlAnd*[T: bool|int|ptr](p:ptr T,val:T) : T {.
         importcpp: "_InterlockedAnd(reinterpret_cast<LONG volatile *>(#), static_cast<LONG>(#))",
           header: "<intrin.h>".}
+      proc interlOr*[T: bool|int|ptr](p:ptr T,val:T) : T {.
+        importcpp: "_InterlockedOr(reinterpret_cast<LONG volatile *>(#), static_cast<LONG>(#))",
+          header: "<intrin.h>".}
   else:
     when sizeof(int) == 8:
       proc interlExchange*[T: bool|int|ptr](p:ptr T, val : T) : T {.
         importc: "_InterlockedExchange64", header: "<intrin.h>".}
       proc interlAnd*[T: bool|int|ptr](p:ptr T, val : T) : T {.
         importc: "_InterlockedAnd64", header: "<intrin.h>".}
+      proc interlOr*[T: bool|int|ptr](p:ptr T, val : T) : T {.
+        importc: "_InterlockedOr64", header: "<intrin.h>".}
     else:
       proc interlExchange*[T: bool|int|ptr](p : ptr T, val: T) : T {.
         importc: "_InterlockedExchange", header: "<intrin.h>".}
       proc interlAnd*[T: bool|int|ptr](p:ptr T, val : T) : T {.
         importc: "_InterlockedAnd", header: "<intrin.h>".}
+      proc interlOr*[T: bool|int|ptr](p:ptr T, val : T) : T {.
+        importc: "_InterlockedOr", header: "<intrin.h>".}
     
   
 type
@@ -179,9 +188,9 @@ when defined(gcc):
 
 when defined(vcc):
   # generic templates for both API and workerthread
-  # properitary  
+  # ms properitary api  
   template atomicLoad[T](t: T ) : T =
-    interlAnd[T](t.addr,T.high) # won´t work for unsigned types
+    interlOr[T](t.addr,cast[T](0)) 
 
   template atomicStore[T](t : T, t1 : T) =  
     discard interlExchange[T](t.addr,t1) 
@@ -232,7 +241,7 @@ template abortWhenTimerFreed(timerhdl : TimerHandlePtr, p : string) =
   if atomicLoad[bool](timerhdl.isFreed):
     # TODO: provide better debug info which timer was freed 
     # and from which source to trackdown nasty sharing errors
-    raise newException(TPError,p & "timer already freed ")
+    raise newException(TPError,p & " timer already freed ")
 
 template waitOnTimerhdl(timerhdl : TimerHandlePtr) =
     # wait counter. each wait_condition is counted. this ensures
@@ -456,7 +465,7 @@ proc initThreadContext*(tpptr : TimerPoolPtr) : void {.raises: [TPError].} =
   checkIfSpawningThread(tpptr)
   initThreadvar()
   
-proc newTimerPool*(tbase_ms : Tickval = 100, minFreedTimers : MinTimerval = 5) : ref TimerPool {.gcsafe.} =
+proc newTimerPool*(tbase_ms : Tickval = 100, minFreedTimers : MinTimerval = 5) : ref TimerPool  =
   ## creator proc.   
   ## The tickval is of milliseconds and 
   ## the default timebase is 100 milliseconds
@@ -466,7 +475,7 @@ proc newTimerPool*(tbase_ms : Tickval = 100, minFreedTimers : MinTimerval = 5) :
   initThreadvar()
   createThread(result.tickthread,timerPoolWorkLoop,(cast[SomePtr](result),cast[int](minFreedTimers)))
 
-proc deinitThreadContext*(tpptr : TimerPoolPtr) : void {.gcsafe , raises: [TPError].} =
+proc deinitThreadContext*(tpptr : TimerPoolPtr) : void {.raises: [TPError].} =
   ## call this proc if the pool-accessing thread should be
   ## detached from the timerpool (cleanup threadvar globs)
   ##
@@ -475,7 +484,7 @@ proc deinitThreadContext*(tpptr : TimerPoolPtr) : void {.gcsafe , raises: [TPErr
   checkIfSpawningThread(tpptr)
   deinitThreadvar()
   
-proc shutdownTimerPool*(tpref :  TimerPoolRef ) : void {.gcsafe.} =
+proc shutdownTimerPool*(tpref :  TimerPoolRef ) : void  =
   ## shuts down the timerpool (graceful) and frees 
   ## all resources (timerHandles and the pool itself)
   ##
@@ -504,7 +513,7 @@ proc shutdownTimerPool*(tpref :  TimerPoolRef ) : void {.gcsafe.} =
   deinitLock(tpref.poolReqLock)
   deinitThreadvar() 
 
-proc allocTimer*(tpptr : TimerPoolPtr) : TimerHandlePtr {.gcsafe , raises: [TPError].} =
+proc allocTimer*(tpptr : TimerPoolPtr) : TimerHandlePtr {.raises: [TPError].} =
   ## returns a timerhandle. the timer is always of type:oneshot but could
   ## also act as a continous one. in this case the caller needs to reset the
   ## alarm to the needed value. This threadsafe call blocks till the request 
@@ -525,10 +534,10 @@ proc allocTimer*(tpptr : TimerPoolPtr) : TimerHandlePtr {.gcsafe , raises: [TPEr
   validatePoolReply(threadContext) 
   result = threadContext.replyTimerHandlePtr
 
-proc allocTimer*(tpptr : TimerPoolRef) : TimerHandlePtr {.gcsafe ,inline, raises: [TPError].} =
+proc allocTimer*(tpptr : TimerPoolRef) : TimerHandlePtr {.inline, raises: [TPError].} =
   return allocTimer(poolRef2Ptr(tpptr))
   
-proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError].} =
+proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.raises: [TPError].} =
   ## the timer handle is pushed back to the pool. 
   ## once freed it is not handled by the timerscan any more and its recycled for later use
   ##
@@ -541,7 +550,7 @@ proc deallocTimer*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError
   abortWhenTimerFreed(timerhdl,"deallocTimer")
   atomicStore[bool](timerhdl.isFreed,true)
 
-proc setAlarmCounter*(timerhdl : TimerHandlePtr , value : Tickval ) : void {.gcsafe , raises: [TPError].} =
+proc setAlarmCounter*(timerhdl : TimerHandlePtr , value : Tickval ) : void {.raises: [TPError].} =
   ## sets the timers countdown alarm-value to the given one.
   ## reset the counter after it´s fired to obtain a continous timer
   ## 
@@ -552,7 +561,7 @@ proc setAlarmCounter*(timerhdl : TimerHandlePtr , value : Tickval ) : void {.gcs
   abortWhenTimerFreed(timerhdl,"setAlarmCounter")
   atomicStore[int](timerhdl.alarmctr,value)  
 
-proc getAlarmCounter*(timerhdl : TimerHandlePtr ) : int {.gcsafe , raises: [TPError].} =
+proc getAlarmCounter*(timerhdl : TimerHandlePtr ) : int {.raises: [TPError].} =
   ## returns the current value of the alarmcounter
   ## could be used for a polling-style-waiting_for_timer_fired
   ##
@@ -563,7 +572,7 @@ proc getAlarmCounter*(timerhdl : TimerHandlePtr ) : int {.gcsafe , raises: [TPEr
   abortWhenTimerFreed(timerhdl,"getAlarmCounter")
   result = atomicLoad[int](timerhdl.alarmctr)
 
-proc waitForAlarm*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError].} =
+proc waitForAlarm*(timerhdl : TimerHandlePtr) : void {.raises: [TPError].} =
   ## blocking wait till the alarmcounter is decremented to 0
   ## 
   ## threadsafe impl and could be called by multiple threads simultaniously
@@ -575,13 +584,13 @@ proc waitForAlarm*(timerhdl : TimerHandlePtr) : void {.gcsafe , raises: [TPError
     waitOnTimerhdl(timerhdl)
    
 type
-  PoolStats* {.gcsafe.} = tuple[runningCount:int, freedCount:int,
+  PoolStats*  = tuple[runningCount:int, freedCount:int,
                                 inactiveCount:int]
     ## container type returned by waitForGetStats. the sum of 
     ## runningCount,freedCount and inactiveCount is the total amount
     ## of timerhandles within the pool
 
-proc waitForGetStats*(tpptr : TimerPoolPtr) : PoolStats {.gcsafe , raises: [TPError].} =
+proc waitForGetStats*(tpptr : TimerPoolPtr) : PoolStats {.raises: [TPError].} =
   ## fetches some pool statistics for debugging purposes
   ##
   ## raises TPError if the pointer parameter is nil or the threadContext
@@ -598,7 +607,7 @@ proc waitForGetStats*(tpptr : TimerPoolPtr) : PoolStats {.gcsafe , raises: [TPEr
   result.freedCount = threadContext.statFreedTimers
   result.inactiveCount = threadContext.statInactiveTimers
 
-proc shrinkTimerPool*(tpptr : TimerPoolPtr) {.gcsafe , raises: [TPError].} =
+proc shrinkTimerPool*(tpptr : TimerPoolPtr) {.raises: [TPError].} =
   ## shrinks the pool of freed Timers.
   ## the given minFreedTimers value at pool construction specifies the lower watermark
   ## 

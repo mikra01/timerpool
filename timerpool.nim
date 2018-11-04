@@ -37,7 +37,7 @@ import times,sequtils,deques,locks, os
 ##    timerhdl.setAlarmCounter(5)  # set expiration to 50ms (timebase * 5)
 ##   
 ##    while timerhdl.getAlarmCounter() > 0: # you can poll it
-##      discard                             # .. and may doing something useful here..
+##      discard                             # .. and may do something useful here..
 ## 
 ##    timerhdl.waitForAlarm()     # or sleep till timer expired
 ##    timerhdl.deallocTimer()     # pushes the timer back to pool  
@@ -420,7 +420,6 @@ proc timerPoolWorkLoop(startupcontext : ThreadArg) {.thread.} =
             deinitCond(allTHandles[i].waitCond)
   
         allTHandles.delete(allTHandles.low,allTHandles.high)
-        allTHandles = nil
         signal(sptr.poolShutdownDoneCond)
         break # exit worker loop
 
@@ -614,8 +613,8 @@ proc shrinkTimerPool*(tpptr : TimerPoolPtr) {.raises: [TPError].} =
   ## this is a nonblocking call.  
   ## raises TPError if the pointer parameter is nil and/or the threadContext
   ## was not initialised with initThreadContext (only needed if the pool was not
-  ## spawned by the caller
-  checkForNil(tpptr,"shrinkPool")
+  ## spawned by the caller)
+  checkForNil(tpptr,"shrinkTimerPool")
   checkForValidThreadContext()
   threadContext.cmd = PoolCmd.shrinkPool  
   withLock(tpptr.poolReqLock):

@@ -53,7 +53,7 @@ proc absTypingTime(val:seq[int]) : int =
 proc generateAbsRandomWaitsPerChar(val:string, metadata: WordIndex) : seq[int] =
   result = newSeq[int](0)
   for idx in metadata.startidx..metadata.length:
-    result.add(random[int](1.int..15.int)) # TODO parameterize the behaviour
+    result.add(random[int](10.int..20.int)) # TODO parameterize the behaviour
 
 proc echoTyped*(dest : File, payload : string) =
   ## funny string output with possible errors
@@ -74,5 +74,11 @@ proc echoTyped*(dest : File, payload : string) =
   sync()   
   tp.shutdownTimerPool()
 
+  
 when isMainModule:
-  stdout.echoTyped("   follow the white rabbit  ")  
+  stdout.echoTyped("Hello Neo....")
+  stdout.echoTyped("   follow the white rabbit  ") 
+  stdout.echoTyped("and dont forget to take the red pill .. :-)")
+  
+  
+    

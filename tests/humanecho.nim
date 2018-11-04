@@ -76,7 +76,7 @@ proc echoTyped*(dest : File, payload : string) =
 
   
 when isMainModule:
-  stdout.echoTyped("Hello Neo....")
+  stdout.echoTyped("Hello Nim....")
   stdout.echoTyped("   follow the white rabbit  ") 
   stdout.echoTyped("and dont forget to take the red pill .. :-)")
   

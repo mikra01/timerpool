@@ -8,5 +8,5 @@ skipDirs = @["tests"]
 # Dependencies
 requires "nim >= 0.17.0"
 
-task timerpool_tests, "running tests":
+task test, "running tests":
   exec "nim timerpool_tests"

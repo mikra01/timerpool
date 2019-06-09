@@ -45,7 +45,7 @@ proc outputWord(dest : File, output:WordChunk,
   output.timer.deallocTimer()
    
 proc absTypingTime(val:seq[int]) : int =
-  ## get sum of random (absolute typing time per word)
+  ## get sum of rand (absolute typing time per word)
   result = 0
   for x in val:
     result = result + x
@@ -53,7 +53,7 @@ proc absTypingTime(val:seq[int]) : int =
 proc generateAbsRandomWaitsPerChar(val:string, metadata: WordIndex) : seq[int] =
   result = newSeq[int](0)
   for idx in metadata.startidx..metadata.length:
-    result.add(random[int](10.int..20.int)) # TODO parameterize the behaviour
+    result.add(rand(range[10.int..20.int])) # TODO parameterize the behaviour
 
 proc echoTyped*(dest : File, payload : string) =
   ## funny string output with possible errors
@@ -62,19 +62,18 @@ proc echoTyped*(dest : File, payload : string) =
     pl : string = payload  
     words :seq[WordIndex] = getWordIdx(pl)
     sptr : StringPtr = pl.addr
-    offset = 0
+    offset = 0.int
 
   for word in words:
     let waitsperchar = generateAbsRandomWaitsPerChar(pl,word)
     var chunk = (sptr,word,tp.allocTimer)
     spawn outputWord(dest,chunk,waitsperchar,offset)
-    offset = offset + (absTypingTime(waitsperchar) - random[int](14.int))
+    offset = offset + (absTypingTime(waitsperchar) - rand(range[1.int..25.int]))
     # simulate type error by substracting something from the timeslot-offset
-  
+
   sync()   
   tp.shutdownTimerPool()
 
-  
 when isMainModule:
   stdout.echoTyped("Hello Nim....")
   stdout.echoTyped("   follow the white rabbit  ") 
